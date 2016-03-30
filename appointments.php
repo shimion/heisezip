@@ -181,6 +181,7 @@ class Appointments {
 		add_action( 'wp_ajax_update_data_for_hok', array( &$this, 'update_data_for_hok' ) ); 		// Do after final confirmation
 		add_action( 'wp_ajax_update_data_for_3line_unav', array( &$this, 'update_data_for_3line_unav' ) ); 		// Do after final confirmation
 		add_action( 'wp_ajax_edit_block_function', array( &$this, 'edit_block_function' ) ); 		// Do after final confirmation
+		add_action( 'wp_ajax_add_block_function', array( &$this, 'add_block_function' ) ); 		// Do after final confirmation
 		add_action( 'wp_ajax_delete_user_app', array( &$this, 'delete_user_app' ) ); 		// Do after final confirmation
 		add_action( 'wp_ajax_add_new_data', array( &$this, 'add_new_data' ) ); 		// Do after final confirmation
 		add_action( 'wp_ajax_add_save_user', array( &$this, 'add_save_user' ) ); 		// Do after final confirmation
@@ -322,6 +323,53 @@ class Appointments {
 	
 	
 }
+
+
+	function get_provider(){
+			global $wpdb;
+			$users = $wpdb->get_results( 'SELECT * FROM `wp_users`');
+				$html = '<select id="select_provider" name="select_provider">';
+			foreach ( $users as $user ) {
+				
+						$html .= '<option value="'.$user->ID.'">'.$user->display_name  . '</option>';
+				 
+			}
+				$html .= '</select>';
+				 
+				 return  $html;
+		}
+
+
+
+
+
+
+	//edit block for appointment listing section
+	function add_block_function(){
+		if(!empty($_POST['id']) and !empty($_POST['date']))
+		$id = $_POST['id'];
+		$date = $_POST['date'];
+		global $wpdb;
+		$user_ID = $id;
+		$data = $date . ':' . $user_ID; 
+			//$button_value = 'Add New';
+			$form = '<form method="post" id="form"  class="form_block" p_id=""><table><h3>Date</h3><p><input id="date_time" data-provide="datepicker" data-date-format="yyyy-mm-dd"></p><h3>Provider</h3><p>'.$this->get_provider().'</p><h3>Start Hours:</h3><tr><td><p>Start:</p><select name="open[Sunday][start]" id="start_start" autocomplete="off">'.$this->option_array('00:00').'</select></td><td><p>End:</p><select id="start_end" name="open[Sunday][end]" autocomplete="off">'.$this->option_array('00:00').'</select></td></tr></table><table><h3>Break Hours:</h3><tr><td><strong>Enable Break Hours:</strong> <select id="enable_break">'.$this->option_break_enable('1').'</select></td></tr><tr><td><p>Start:</p><select id="break_start" name="close[Sunday][start]" autocomplete="off">'.$this->option_array('00:00').'</select></td><td><p>End:</p><select name="open[Sunday][end]" id="break_end" autocomplete="off">'.$this->option_array('00:00').'</select></td></tr></table></form>';
+		$reply_array = array(
+							'date'	=> $date,
+							'user_ID'	=> $user_ID,
+							'button_value'	=> $button_value,
+							'data'		=> $data,
+							'form'			=>$form,
+							'check'		=> $user_count
+						);
+
+		//$reply_array = apply_filters( 'app_pre_confirmation_reply', $reply_array );
+
+		die( json_encode( $reply_array ));
+		
+		}
+
+
 
 
 
@@ -1476,6 +1524,12 @@ class Appointments {
 				if(!empty($_POST["start_end"]))
 				$start_end = $_POST["start_end"];
 				
+				if(!empty($_POST["date_time"]))
+				$date_time = $_POST["date_time"];
+				
+				if(!empty($_POST["select_provider"]))
+				$select_provider = $_POST["select_provider"];
+				
 				
 				
 				if(!empty($_POST["break_start"]))
@@ -1493,7 +1547,6 @@ class Appointments {
 				$user_count = $wpdb->get_row( "SELECT * FROM wp_three_line_appointment WHERE ID = ".$id."" );
 				if($user_count != NULL){
 						global $wpdb;
-					
 					$result = $wpdb->update( 
 							'wp_three_line_appointment', 
 							array( 
@@ -1512,8 +1565,31 @@ class Appointments {
 						);
 						
 						
+			}else{
+				
+					if(empty($id)){
+						$result = $wpdb->insert( 
+							'wp_three_line_appointment', 
+							array( 
+								'worker' => $select_provider, 
+								'date' => $date_time, 
+								'working_hours_start' => $start_start, 
+								'working_hours_end' => $start_end, 
+								'break_enable' => $enable_break, 
+								'break_start' => $break_start, 
+								'break_end' => $break_end, 
+								//'block' => '0', 
+								//'assinged' => '0', 
+							),
+							array( 
+								'%s',
+							) 
+						);
+
+					}
+				
 						/*$result = $wpdb->query("UPDATE `wp_three_line_appointment` SET `worker` = '$user_ID', `date` = '$date', `working_hours_start` = '$start_start', `working_hours_end` = '$start_end', `break_enable` = '1', `break_start` = '1', `break_end` = '1' WHERE `wp_three_line_appointment`.`ID` = 39;");*/
-						if($result):
+						if(!empty($result) or $result != false):
 							$reply_array = array(
 								'success' => 'This schedule has been updated.',
 							//	'worker' => $user_ID, 
@@ -6583,6 +6659,8 @@ if ($this->worker && $this->service && ($app->service != $this->service)) {
 	function load_scripts_styles_backend( ) {
 		wp_enqueue_script( 'bootstrap', $this->plugin_url . '/js/bootstrap-admin.js', array('jquery'), $this->version );
 		wp_enqueue_style( 'bootstrap', $this->plugin_url . '/css/bootstrap-admin.css', array(), $this->version );
+		wp_enqueue_script('bootstrap-datepicker.min',$this->plugin_url . '/js/bootstrap-datepicker.min.js');
+		wp_enqueue_style('bootstrap-datepicker.min', $this->plugin_url . '/css/bootstrap-datepicker.standalone.min.css');
 	}
 	 
 	function load_scripts_styles( ) {
