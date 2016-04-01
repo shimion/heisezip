@@ -6,11 +6,14 @@ add_action( 'admin_menu', 'menu_appointment_listing' );
 function menu_appointment_listing() {
 	add_menu_page( 'Tour Guide Availability', 'Tour Guide Availability', 'update_core', 'appointment-listing', 'appointment_listing' );
 }
+
+
 function appointment_listing(){
 
 
 ?>
-
+<div class="wrap">
+<h2>Tour Guide Availability	<a href="#" id="add_block" data-toggle="modal" data-target="#myModaledit" class="add-new-h2">Add New</a></h2>
 <table cellspacing="0" class="widefat">
 		<thead>
 				<tr>
@@ -134,7 +137,7 @@ function appointment_listing(){
 
 		</tbody>
 	</table>
-
+</div>
 <div class="modal fade" id="myModaledit" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" style="display: none;">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
@@ -167,12 +170,14 @@ function appointment_listing(){
 								
 							//var data = $(".eventCalendar-subtitle").attr( "data" );
 							//alert(date_each);
+							var date_time = $("#date_time").val();
+							var select_provider = $("#select_provider").val();
 							var start_start = $("#start_start :selected").val();
 							var start_end = $("#start_end :selected").val();
 							var break_start = $("#break_start :selected").val();
 							var break_end = $("#break_end :selected").val();
 							var enable_break = $("#enable_break :selected").val();
-							var add_save_user_data_block = {action: "add_save_user_block", id: id,  start_start: start_start, start_end: start_end, break_start: break_start, break_end: break_end, enable_break: enable_break, nonce: "<?php wp_create_nonce() ?>"};	
+							var add_save_user_data_block = {action: "add_save_user_block", id: id,  start_start: start_start, start_end: start_end, break_start: break_start, break_end: break_end, enable_break: enable_break, date_time: date_time, select_provider: select_provider, nonce: "<?php wp_create_nonce() ?>"};	
 								$.post(ajaxurl, add_save_user_data_block, function(response) {
 										
 											if ( response && response.error ){
@@ -193,7 +198,46 @@ function appointment_listing(){
 												
 				});						
 
+
+//add New Tour Guide Availability
+					jQuery(document).ready(function($) {
+						$( "#add_block" ).click(function() {
+							$(".edit_body").empty();
+							$(".edit_body").append( '<img class="waiting" src="http://heisezip.webimpakt-green.com/wp-admin/images/wpspin_light.gif" alt="">' )
+								//alert(data);
+							var edit_block = {action: "add_block_function", nonce: "<?php wp_create_nonce() ?>"};	
+								$.post(ajaxurl, edit_block, function(response) {
+										
+											if ( response && response.error ){
+												alert(response.error);
+												
+											}else{
+												//alert('Updated...');
+												if(response.form ){
+													
+													$(".waiting").hide();
+													$(".edit_body").append( response.form )
+													}else{
+													$(".waiting").show();	
+														}
+												
+												
+												//$(this).attr("style",response.result);
+												<?php  $url =  admin_url('admin.php?page=appointment-listing'); ?>
+												//window.location.href='<?php echo $url; ?>';
+												
+											}
+									},'json');
+											
+						});						
+						
+						
+												
+				});						
+
 </script>
+
+
 
 	
 <?php

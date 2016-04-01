@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 define('inc',__dir__.'/includes/');
 require_once(inc . 'app-admin-settings-working_hours.php');
 require_once(inc . 'appointment-listing.php');
+require_once(inc . 'ture-time.php');
 require_once(inc . 'working-shedule.php');
 require_once(inc . 'paypal-return.php');
 include('test.php');
@@ -175,6 +176,7 @@ class Appointments {
 
 		// Backend three line ajax hooks
 		add_action( 'wp_ajax_check_user', array( &$this, 'check_user' ) ); 		// Do after final confirmation
+		add_action( 'wp_ajax_check_time_frame', array( &$this, 'check_time_frame' ) ); 		// Do after final confirmation
 		add_action( 'wp_ajax_check_allinfo', array( &$this, 'check_allinfo' ) ); 		// Do after final confirmation
 		add_action( 'wp_ajax_block', array( &$this, 'block' ) ); 		// Do after final confirmation
 		add_action( 'wp_ajax_update_data_for_3line', array( &$this, 'update_data_for_3line' ) ); 		// Do after final confirmation
@@ -190,7 +192,7 @@ class Appointments {
 
 		add_action( 'wp_ajax_cancel_app', array( &$this, 'cancel' ) ); 							// Cancel appointment from my appointments
 		add_action( 'wp_ajax_nopriv_cancel_app', array( &$this, 'cancel' ) ); 					// Cancel appointment from my appointments
-
+		add_action('admin_init', array( &$this, 'save_data_ture_time' ));
 		// API login after the options have been initialized
 		add_action('init', array($this, 'setup_api_logins'), 10);
 
@@ -762,6 +764,76 @@ class Appointments {
 		die( json_encode( $reply_array ));
 		
 		}
+
+
+
+	function save_data_ture_time(){
+		
+			if(!empty($_REQUEST['submit_hours']) and $_REQUEST['submit_hours'] == 'Submit'):
+				if(!empty($_REQUEST['hours']))
+				$hours = $_REQUEST['hours'];
+				if(!empty($_REQUEST['date']))
+				$date = $_REQUEST['date'];
+				
+				
+				global $wpdb;
+				$result = $wpdb->insert( 
+							'wp_app_time_frame', 
+							array( 
+								'date' => $date, 
+								'time' => json_encode($hours), 
+							), 
+							array( 
+								'%s',
+							) 
+						);
+				if($result){
+					wp_redirect(admin_url('admin.php?page=ture-time&update=yes')); exit;
+					
+					}
+				
+				
+				
+			endif;
+		}
+
+
+
+	//check time frame
+	function check_time_frame(){
+		if(!empty($_POST['date']))
+		$date = $_POST['date'];
+		
+		global $wpdb;
+		$user_ID = get_current_user_id();
+		$data = $date . ':' . $user_ID; 
+		//if(current_user_can('hooker')){
+		$user_count = $wpdb->get_row( "SELECT * FROM wp_app_time_frame WHERE `date` = '$date%'" );
+		//}
+		if($user_count != NULL){
+			//$button_value = 'Edit';
+			$form = '<form method="post" id="form"><table id="table_wapper"><tr id="counting_tr"><td><p>Start:</p><select name="open[Sunday][start]" id="start_start" autocomplete="off">'.$this->option_array('00:00').'</select></td><td><p>End:</p><select id="start_end" name="open[Sunday][end]" autocomplete="off">'.$this->option_array('00:00').'</select></td><td></tr></table><input type="submit" value="Submit" name="submit_hours" class="button-primary" /><input type="hidden" value="'.$date.'" name="date" /><a href="#" class="dashicons dashicons-plus-alt add_more_timeframe"></a></form>';
+			}else{
+			//$button_value = 'Add New';
+			$form = '<form method="post" id="form"><table id="table_wapper"></table><input type="submit" value="Submit" name="submit_hours" class="button-primary" /><input type="hidden" value="'.$date.'" name="date" /><a href="#" class="dashicons dashicons-plus-alt add_more_timeframe" counting="1"></a></form>';
+			}
+		$reply_array = array(
+							'date'	=> $date,
+							'user_ID'	=> $user_ID,
+							'button_value'	=> $button_value,
+							'data'		=> $data,
+							'form'			=>$form,
+							'check'		=> $user_count
+						);
+
+		//$reply_array = apply_filters( 'app_pre_confirmation_reply', $reply_array );
+
+		die( json_encode( $reply_array ));
+		
+		}
+
+
+
 
 	function update_data_for_3line(){
 		$time = $_POST['time'];
