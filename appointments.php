@@ -112,12 +112,19 @@ if ( !class_exists( 'Appointments' ) ) {
 class Appointments {
 
 	var $version = "1.4.8";
+	public $time_choice_first = array();
+    public $time_choice_second = array();
+	public $day_array = array();
+	public $default_hours = array();
 
 	function __construct() {
-
+		$this->day_array = array('Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thusday');
 		$this->plugin_dir = plugin_dir_path(__FILE__);
 		$this->plugin_url = plugins_url(basename(dirname(__FILE__)));
-
+		$this->time_choice_first = array('09:00', '10:30', '12:00', '01:30', '03:00', '04:30', '06:00', '07:30');
+        $this->time_choice_second = array('10:30', '12:00', '01:30', '03:00', '04:30', '06:00');
+		$this->default_hours = maybe_unserialize(get_option( 'default_hours' ));
+		$this->default_user_ID = array('16', '17');
 		// Read all options at once
 		$this->options = get_option( 'appointments_options' );
 
@@ -193,9 +200,11 @@ class Appointments {
 		add_action( 'wp_ajax_cancel_app', array( &$this, 'cancel' ) ); 							// Cancel appointment from my appointments
 		add_action( 'wp_ajax_nopriv_cancel_app', array( &$this, 'cancel' ) ); 					// Cancel appointment from my appointments
 		add_action('admin_init', array( &$this, 'save_data_ture_time' ));
+		//Add default Time 
+		add_action('admin_init', array($this, 'default_hours'), 10);
 		// API login after the options have been initialized
 		add_action('init', array($this, 'setup_api_logins'), 10);
-
+		
 		// Widgets
 		require_once( $this->plugin_dir . '/includes/widgets.php' );
 		add_action( 'widgets_init', array( &$this, 'widgets_init' ) );
@@ -275,7 +284,27 @@ class Appointments {
 	}
 	
 
-
+	function default_hours(){
+		if($_POST['default_submit_hours']){
+			
+			$option_name = 'default_hours' ;
+				$new_value = maybe_serialize($_POST['default_hours']) ;
+				
+				if ( get_option( $option_name ) !== false ) {
+				
+					// The option already exists, so we just update it.
+					update_option( $option_name, $new_value );
+				
+				} else {
+				
+					// The option hasn't been added yet. We'll add it with $autoload set to 'no'.
+					$deprecated = null;
+					$autoload = 'no';
+					add_option( $option_name, $new_value, $deprecated, $autoload );
+				}
+			
+			}
+		}
 	
 	
 	function app_create_post(){
@@ -355,7 +384,7 @@ class Appointments {
 		$user_ID = $id;
 		$data = $date . ':' . $user_ID; 
 			//$button_value = 'Add New';
-			$form = '<form method="post" id="form"  class="form_block" p_id=""><table><h3>Date</h3><p><input id="date_time" data-provide="datepicker" data-date-format="yyyy-mm-dd"></p><h3>Provider</h3><p>'.$this->get_provider().'</p><h3>Start Hours:</h3><tr><td><p>Start:</p><select name="open[Sunday][start]" id="start_start" autocomplete="off">'.$this->option_array('00:00').'</select></td><td><p>End:</p><select id="start_end" name="open[Sunday][end]" autocomplete="off">'.$this->option_array('00:00').'</select></td></tr></table><table><h3>Break Hours:</h3><tr><td><strong>Enable Break Hours:</strong> <select id="enable_break">'.$this->option_break_enable('1').'</select></td></tr><tr><td><p>Start:</p><select id="break_start" name="close[Sunday][start]" autocomplete="off">'.$this->option_array('00:00').'</select></td><td><p>End:</p><select name="open[Sunday][end]" id="break_end" autocomplete="off">'.$this->option_array('00:00').'</select></td></tr></table></form>';
+			$form = '<form method="post" id="form"  class="form_block" p_id=""><table><h3>Date</h3><p><input id="date_time" data-provide="datepicker" data-date-format="yyyy-mm-dd"></p><h3>Provider</h3><p>'.$this->get_provider().'</p><h3>Start Hours:</h3><tr><td><p>Start:</p><select name="open[Sunday][start]" id="start_start" autocomplete="off">'.$this->option_array('07:30', array('start'=>'07:30', 'end'=>'23:30')).'</select></td><td><p>End:</p><select id="start_end" name="open[Sunday][end]" autocomplete="off">'.$this->option_array('07:00', array('start'=>'07:30', 'end'=>'23:30')).'</select></td></tr></table><table><h3>Break Hours:</h3><tr><td><strong>Enable Break Hours:</strong> <select id="enable_break">'.$this->option_break_enable('1').'</select></td></tr><tr><td><p>Start:</p><select id="break_start" name="close[Sunday][start]" autocomplete="off">'.$this->option_array('07:30', array('start'=>'00:00', 'end'=>'23:30')).'</select></td><td><p>End:</p><select name="open[Sunday][end]" id="break_end" autocomplete="off">'.$this->option_array('00:00', array('start'=>'00:00', 'end'=>'23:30')).'</select></td></tr></table></form>';
 		$reply_array = array(
 							'date'	=> $date,
 							'user_ID'	=> $user_ID,
@@ -391,10 +420,10 @@ class Appointments {
 		}
 		if($user_count != NULL){
 			//$button_value = 'Edit';
-			$form = '<form method="post" id="form" class="form_block" p_id="'.$id.'"><table><h3>Start Hours:</h3><tr><td><p>Start:</p><select name="open[Sunday][start]" id="start_start" autocomplete="off">'.$this->option_array($user_count->working_hours_start).'</select></td><td><p>End:</p><select id="start_end" name="open[Sunday][end]" autocomplete="off">'.$this->option_array($user_count->working_hours_end).'</select></td></tr></table><table><h3>Break Hours:</h3><tr><td><strong>Enable Break Hours: </strong><select id="enable_break">'.$this->option_break_enable($user_count->break_enable).'</select></td></tr><tr><td><p>Start:</p><select id="break_start" name="close[Sunday][start]" autocomplete="off">'.$this->option_array($user_count->break_start).'</select></td><td><p>End:</p><select name="open[Sunday][end]" id="break_end" autocomplete="off">'.$this->option_array($user_count->break_end).'</select></td></tr></table></form>';
+			$form = '<form method="post" id="form" class="form_block" p_id="'.$id.'"><table><h3>Start Hours:</h3><tr><td><p>Start:</p><select name="open[Sunday][start]" id="start_start" autocomplete="off">'.$this->option_array($user_count->working_hours_start, array('start'=>'07:30', 'end'=>'23:30')).'</select></td><td><p>End:</p><select id="start_end" name="open[Sunday][end]" autocomplete="off">'.$this->option_array($user_count->working_hours_end, array('start'=>'07:30', 'end'=>'23:30')).'</select></td></tr></table><table><h3>Break Hours:</h3><tr><td><strong>Enable Break Hours: </strong><select id="enable_break">'.$this->option_break_enable($user_count->break_enable, array('start'=>'07:30', 'end'=>'23:30')).'</select></td></tr><tr><td><p>Start:</p><select id="break_start" name="close[Sunday][start]" autocomplete="off">'.$this->option_array($user_count->break_start, array('start'=>'07:30', 'end'=>'23:30')).'</select></td><td><p>End:</p><select name="open[Sunday][end]" id="break_end" autocomplete="off">'.$this->option_array($user_count->break_end, array('start'=>'07:30', 'end'=>'23:30')).'</select></td></tr></table></form>';
 			}else{
 			//$button_value = 'Add New';
-			$form = '<form method="post" id="form"  class="form_block" p_id="'.$id.'"><table><h3>Start Hours:</h3><tr><td><p>Start:</p><select name="open[Sunday][start]" id="start_start" autocomplete="off">'.$this->option_array('00:00').'</select></td><td><p>End:</p><select id="start_end" name="open[Sunday][end]" autocomplete="off">'.$this->option_array('00:00').'</select></td></tr></table><table><h3>Break Hours:</h3><tr><td><strong>Enable Break Hours:</strong> <select id="enable_break">'.$this->option_break_enable('1').'</select></td></tr><tr><td><p>Start:</p><select id="break_start" name="close[Sunday][start]" autocomplete="off">'.$this->option_array('00:00').'</select></td><td><p>End:</p><select name="open[Sunday][end]" id="break_end" autocomplete="off">'.$this->option_array('00:00').'</select></td></tr></table><p id="submit_3line_hours" class="button-primary">Submit</p></form>';
+			$form = '<form method="post" id="form"  class="form_block" p_id="'.$id.'"><table><h3>Start Hours:</h3><tr><td><p>Start:</p><select name="open[Sunday][start]" id="start_start" autocomplete="off">'.$this->option_array('07:30', array('start'=>'07:30', 'end'=>'23:30')).'</select></td><td><p>End:</p><select id="start_end" name="open[Sunday][end]" autocomplete="off">'.$this->option_array('07:30', array('start'=>'07:30', 'end'=>'23:30')).'</select></td></tr></table><table><h3>Break Hours:</h3><tr><td><strong>Enable Break Hours:</strong> <select id="enable_break">'.$this->option_break_enable('1').'</select></td></tr><tr><td><p>Start:</p><select id="break_start" name="close[Sunday][start]" autocomplete="off">'.$this->option_array('07:30', array('start'=>'07:30', 'end'=>'23:30')).'</select></td><td><p>End:</p><select name="open[Sunday][end]" id="break_end" autocomplete="off">'.$this->option_array('07:30', array('start'=>'07:30', 'end'=>'23:30')).'</select></td></tr></table><p id="submit_3line_hours" class="button-primary">Submit</p></form>';
 			}
 		$reply_array = array(
 							'date'	=> $date,
@@ -642,45 +671,94 @@ class Appointments {
 				}
 			return $output;	
 		}
+
+
+	function get_day_limitation($date){
+		global $wpdb;
+		$time_frame = $wpdb->get_row( "SELECT * FROM wp_app_time_frame WHERE `date` = '$date%'" );
+		$time = json_decode($time_frame->time);
+		if(empty($time_frame)){
+				if(!empty($time)){
+				return $time;
+				}
+			}
+		
+		}
 	
 	
-	function option_array($select){
+	function option_array($select, $restriction = array()){
 			$array = array(
 				'00:00' => '12:00 am',
-				'01:00' => '1:00 am',
-				'02:00' => '2:00 am',
+				//'00:30' => '12:30 am',
+				//'01:00' => '1:00 am',
+				'01:30' => '1:30 am',
+				//'02:00' => '2:00 am',
+				//'02:30' => '2:30 am',
 				'03:00' => '3:00 am',
-				'04:00' => '4:00 am',
-				'05:00' => '5:00 am',
+				//'03:30' => '3:30 am',
+				//'04:00' => '4:00 am',
+				'04:30' => '4:30 am',
+				//'05:00' => '5:00 am',
+				//'05:30' => '5:30 am',
 				'06:00' => '6:00 am',
-				'07:00' => '7:00 am',
-				'08:00' => '8:00 am',
+				//'06:30' => '6:30 am',
+				//'07:00' => '7:00 am',
+				'07:30' => '7:30 am',
+				//'08:00' => '8:00 am',
+				//'08:30' => '8:30 am',
 				'09:00' => '9:00 am',
-				'10:00' => '10:00 am',
-				'11:00' => '11:00 am',
+				//'09:30' => '9:30 am',
+				//'10:00' => '10:00 am',
+				'10:30' => '10:30 am',
+				//'11:00' => '11:00 am',
+				//'11:30' => '11:30 am',
 				'12:00' => '12:00 pm',
-				'13:00' => '1:00 pm',
-				'14:00' => '2:00 pm',
+				//'12:30' => '12:30 pm',
+				//'13:00' => '1:00 pm',
+				'13:30' => '1:30 pm',
+				//'14:00' => '2:00 pm',
+				//'14:30' => '2:30 pm',
 				'15:00' => '3:00 pm',
-				'16:00' => '4:00 pm',
-				'17:00' => '5:00 pm',
+				//'15:30' => '3:30 pm',
+				//'16:00' => '4:00 pm',
+				'16:30' => '4:30 pm',
+				//'17:00' => '5:00 pm',
+				//'17:30' => '5:30 pm',
 				'18:00' => '6:00 pm',
-				'19:00' => '7:00 pm',
-				'20:00' => '8:00 pm',
+				//'18:30' => '6:30 pm',
+				//'19:00' => '7:00 pm',
+				'19:30' => '7:30 pm',
+				//'20:00' => '8:00 pm',
+				//'20:30' => '8:30 pm',
 				'21:00' => '9:00 pm',
-				'22:00' => '10:00 pm',
-				'23:00' => '11:00 pm',
+				//'21:30' => '9:30 pm',
+				//'22:00' => '10:00 pm',
+				'22:30' => '10:30 pm',
+				//'23:00' => '11:00 pm',
+				//'23:30' => '11:30 pm',
 				
 			);
 			
 			foreach($array as $key=>$value){
-				$output .='<option '.$select.' value="'.$key.'"';
-				if($select==$key) {
-				$output .='selected="selected"';	
+				if($restriction != NULL and !empty($restriction)){
+						if(!empty($restriction['start']) and !empty($restriction['end'])){
+							if($restriction['start'] <= $key and $restriction['end'] >= $key){
+							$output .='<option '.$select.' value="'.$key.'"';
+							if($select==$key) {
+							$output .='selected="selected"';	
+								}
+							$output .='>'.$value.'</option>';
+							}
+						}else{
+							$output .='<option '.$select.' value="'.$key.'"';
+							if($select==$key) {
+							$output .='selected="selected"';	
+								}
+							$output .='>'.$value.'</option>';
+							
+						}
 					}
-				$output .='>'.$value.'</option>';
-				
-				}
+			}
 			return $output;	
 		
 		}
@@ -777,6 +855,22 @@ class Appointments {
 				
 				
 				global $wpdb;
+				$time_frame = $wpdb->get_row( "SELECT * FROM wp_app_time_frame WHERE `date` = '$date%'" );
+				if($time_frame!= NULL){
+				$result = $wpdb->update( 
+							'wp_app_time_frame', 
+							array( 
+								'date' => $date, 
+								'time' => json_encode($hours), 
+							), 
+							array( 'ID' => $time_frame->ID ), 
+							array( 
+								'%s',
+								'%s',
+							),
+							array( '%d' ) 
+						);
+					}else{
 				$result = $wpdb->insert( 
 							'wp_app_time_frame', 
 							array( 
@@ -787,10 +881,13 @@ class Appointments {
 								'%s',
 							) 
 						);
-				if($result){
-					wp_redirect(admin_url('admin.php?page=ture-time&update=yes')); exit;
-					
 					}
+				if($result){
+					wp_redirect(admin_url('admin.php?page=tour-time&update=yes')); exit;
+					
+					}else{
+					wp_redirect(admin_url('admin.php?page=tour-time&update=no')); exit;
+						}
 				
 				
 				
@@ -805,18 +902,27 @@ class Appointments {
 		$date = $_POST['date'];
 		
 		global $wpdb;
-		$user_ID = get_current_user_id();
-		$data = $date . ':' . $user_ID; 
-		//if(current_user_can('hooker')){
-		$user_count = $wpdb->get_row( "SELECT * FROM wp_app_time_frame WHERE `date` = '$date%'" );
-		//}
-		if($user_count != NULL){
+		$time_frame = $wpdb->get_row( "SELECT * FROM wp_app_time_frame WHERE `date` = '$date%'" );
+		//var_dump($time_frame);
+			$form = '<form method="post" id="form"><table id="table_wapper">';
+			
+		if($time_frame != NULL){
 			//$button_value = 'Edit';
-			$form = '<form method="post" id="form"><table id="table_wapper"><tr id="counting_tr"><td><p>Start:</p><select name="open[Sunday][start]" id="start_start" autocomplete="off">'.$this->option_array('00:00').'</select></td><td><p>End:</p><select id="start_end" name="open[Sunday][end]" autocomplete="off">'.$this->option_array('00:00').'</select></td><td></tr></table><input type="submit" value="Submit" name="submit_hours" class="button-primary" /><input type="hidden" value="'.$date.'" name="date" /><a href="#" class="dashicons dashicons-plus-alt add_more_timeframe"></a></form>';
+			$time_decode = json_decode($time_frame->time);
+			//$count = count($time_decode);
+			$count = 0;
+			//foreach($time_decode as $key=>$value){
+			$form .='<tr id="counting_tr"><td><p>Start:</p><select name="hours[start]" id="start_start" autocomplete="off">'.$this->option_array($time_decode->start, array('start'=>'00:00', 'end'=>'23:30')).'</select></td><td><p>End:</p><select id="start_end" name="hours[end]" autocomplete="off">'.$this->option_array($time_decode->end, array('start'=>'00:00', 'end'=>'23:30')).'</select></td><td><p>&nbsp;</p><!--<a href="#" class="dashicons dashicons-plus-alt add_more_timeframe" counting="'.$count.'"></a>--></td></tr>';
+		//	}
+			
 			}else{
 			//$button_value = 'Add New';
-			$form = '<form method="post" id="form"><table id="table_wapper"></table><input type="submit" value="Submit" name="submit_hours" class="button-primary" /><input type="hidden" value="'.$date.'" name="date" /><a href="#" class="dashicons dashicons-plus-alt add_more_timeframe" counting="1"></a></form>';
+			$form .= '<tr id="counting_tr"><td><p>Start:</p><select name="hours[start]" id="start_start" autocomplete="off">'.$this->option_array('00:00', array('start'=>'00:00', 'end'=>'23:30')).'</select></td><td><p>End:</p><select id="start_end" name="hours[end]" autocomplete="off">'.$this->option_array('00:00', array('start'=>'00:00', 'end'=>'23:30')).'</select></td><td><p>&nbsp;</p><!--<a href="#" class="dashicons dashicons-plus-alt add_more_timeframe" counting="'.$count.'"></a>--></td></tr>';
+			//$count = 0;
 			}
+			
+			$form .='</table><input type="submit" value="Submit" name="submit_hours" class="button-primary" /><input type="hidden" value="'.$date.'" name="date" /></form>';
+			
 		$reply_array = array(
 							'date'	=> $date,
 							'user_ID'	=> $user_ID,
@@ -923,7 +1029,7 @@ class Appointments {
 							
 							}else{
 						global $wpdb;
-						if($wp_worker_assinged_3line_table != 0 and !empty($wp_worker_assinged_3line_table)){
+						if($wp_worker_assinged_3line_table != 0 or !empty($wp_worker_assinged_3line_table) or $wp_worker_assinged_3line_table != null){
 						$user_info = get_userdata($worker_hour->worker);
 							if(!empty($user_info->user_login) or $user_info->user_login != NULL ){
 						$form .= '<div class="btn btn-success"   id="'.$start_db.'_unassinged_'.$i.'" time="'.$start_db.'" app_id="'.$worker_hour->ID.'" upp_id="'.$wp_worker_assinged_3line_table->ID.'" type="'.$wp_worker_assinged_3line_table->type.'">'.$user_info->user_login .'</div>';
@@ -1442,7 +1548,7 @@ class Appointments {
 			$form .='</tfoot>';
 			
 			$form .='<tbody>';
-			
+			$form .= $this->line_sec_hours($date, '7:30am', '9:30am');
 			$form .= $this->line_sec_hours($date, '9:00am', '10:30am');
 			$form .= $this->line_sec_hours($date, '10:30am', '12:00pm');
 			$form .= $this->line_sec_hours($date, '12:00pm', '1:30pm');
@@ -1586,7 +1692,6 @@ class Appointments {
 
 
 	function add_save_user_block(){
-				
 				if(!empty($_POST["id"]))
 				$id = $_POST["id"];
 
@@ -1598,6 +1703,17 @@ class Appointments {
 				
 				if(!empty($_POST["date_time"]))
 				$date_time = $_POST["date_time"];
+
+				$today = date("Y-m-d");
+				$today_time = strtotime($today);
+				$get_date = strtotime($date_time);
+				if ($get_date < $today_time) { 
+				$reply_array = array(
+								'error' => 'The Date is already Passed',
+									);
+									die( json_encode( $reply_array ));
+				}
+				
 				
 				if(!empty($_POST["select_provider"]))
 				$select_provider = $_POST["select_provider"];
@@ -1613,6 +1729,9 @@ class Appointments {
 				
 				if(!empty($_POST["enable_break"]))
 				$enable_break = $_POST["enable_break"];
+				
+				
+				
 				
 				
 				global $wpdb;
@@ -1635,7 +1754,19 @@ class Appointments {
 								'%s',
 							) 
 						);
-						
+											if(!empty($result) or $result != false):
+							$reply_array = array(
+								'success' => 'This schedule has been updated.',
+							//	'worker' => $user_ID, 
+							//	'date' => $date, 
+								'working_hours_start' => $start_start, 
+								'working_hours_end' => $start_end, 
+								'break_enable' => $enable_break, 
+								'break_hours_start' => $break_start, 
+								'break_hours_start' => $break_end, 
+									);
+							endif;
+	
 						
 			}else{
 				
@@ -1657,13 +1788,10 @@ class Appointments {
 								'%s',
 							) 
 						);
-
-					}
-				
-						/*$result = $wpdb->query("UPDATE `wp_three_line_appointment` SET `worker` = '$user_ID', `date` = '$date', `working_hours_start` = '$start_start', `working_hours_end` = '$start_end', `break_enable` = '1', `break_start` = '1', `break_end` = '1' WHERE `wp_three_line_appointment`.`ID` = 39;");*/
+						
 						if(!empty($result) or $result != false):
 							$reply_array = array(
-								'success' => 'This schedule has been updated.',
+								'success' => 'New schedule is added',
 							//	'worker' => $user_ID, 
 							//	'date' => $date, 
 								'working_hours_start' => $start_start, 
@@ -1673,6 +1801,12 @@ class Appointments {
 								'break_hours_start' => $break_end, 
 									);
 							endif;
+						
+						
+
+					}
+				
+						/*$result = $wpdb->query("UPDATE `wp_three_line_appointment` SET `worker` = '$user_ID', `date` = '$date', `working_hours_start` = '$start_start', `working_hours_end` = '$start_end', `break_enable` = '1', `break_start` = '1', `break_end` = '1' WHERE `wp_three_line_appointment`.`ID` = 39;");*/
 
 
 					}
@@ -1768,7 +1902,7 @@ function receive_paypal(){
 		
 		
 		$values= explode( ",", $_POST["custom"] );
-		print_r($values);
+		//print_r($values);
 		$worker 		= $values[0];
 		$created 		= $values[1];
 		$user 			= $values[2];
@@ -3142,6 +3276,8 @@ function receive_paypal(){
 		if(!empty($app_appointments) and $app_appointments>=15)
 			return true;
 		}
+
+
 	
 	
 	function check_and_conform_attendence($start, $end){
@@ -3368,6 +3504,8 @@ function get_worker_new($start, $end){
 	}
 
 
+
+
 //get worker for 3 line
 function get_worker_three_line($ccs, $cce){
 		global $wpdb;
@@ -3375,6 +3513,8 @@ function get_worker_three_line($ccs, $cce){
 		$hour_min = strtotime ($hour_min);
 		$hour_min_end = date ("H:i", $cce);
 		$day = date ("d", $ccs);
+		$day_name = date ("l", $ccs);
+		//print('<br>Day: '.date ("l", $ccs).'<br>');
 		$month = date ("m", $ccs);
 		$year = date ("Y", $ccs);
 		
@@ -3384,14 +3524,15 @@ function get_worker_three_line($ccs, $cce){
 							$hour_min = strtotime ($hour_min);
 							$day = date ("l", $start);
 							$month = date ("m", $start);*/
-
-
+		$user_ID = array();
+		//print_r($this->day_array);
+		//if(!array_search($day_name, $this->day_array)){
 		$working_hours = $wpdb->get_results( "SELECT * FROM wp_three_line_appointment WHERE `date` = '$date%'");
 		$working_hours_hook = $wpdb->get_results( "SELECT * FROM wp_app_hooker WHERE `date` = '$date%'");
 		
 		$working_hours = array_merge($working_hours, $working_hours_hook);
 		if(!empty($working_hours) and is_array($working_hours)){
-			$user_ID = array();
+			
 			foreach($working_hours as $worker_hour){
 			$wp_worker_assinged_3line_table = $wpdb->get_row( "SELECT * FROM `wp_worker_assinged_3line_table` WHERE `time` LIKE  '$hour_min' AND `app_id` = '$worker_hour->ID'" );
 			if(strtotime ($worker_hour->working_hours_start) <= $hour_min and $hour_min <= strtotime ($worker_hour->working_hours_end) ){
@@ -3399,23 +3540,79 @@ function get_worker_three_line($ccs, $cce){
 						if(strtotime ($worker_hour->break_start)<=$hour_min and $hour_min <= strtotime ($worker_hour->break_end) ){
 							
 							}else{
-								if($wp_worker_assinged_3line_table != 0 and !empty($wp_worker_assinged_3line_table)){
+								if($wp_worker_assinged_3line_table != 0 or !empty($wp_worker_assinged_3line_table) or $wp_worker_assinged_3line_table != null){
 								$user_ID[] = $worker_hour->worker;
 								}
 							}
 						
 					}else{
-								if($wp_worker_assinged_3line_table != 0 and !empty($wp_worker_assinged_3line_table)){
+								if($wp_worker_assinged_3line_table != 0 or !empty($wp_worker_assinged_3line_table) or $wp_worker_assinged_3line_table != null){
 								$user_ID[] = $worker_hour->worker;
 								}
 						}
 					}
 				}
 			}
+	//	}
 			
 			//$user_ID = array('1', '2');
+			//print_r($user_ID );
+			
+			
 			return $user_ID;
 	}
+	
+
+/*function get_single_three_line_user_availibity_of_specific_date($ccs, $id){
+	$start = date ("Y-m-d H:i:s", $ccs);
+	global $wpdb;
+	$app_appointment = $wpdb->get_var( "SELECT COUNT(*) FROM wp_app_appointments WHERE start = '$start%' AND `worker` = ".$id."" );
+	if($app_appointment >= 3){
+		 return false;
+		}else{
+		 return true;	
+		}
+	
+	}
+
+*/
+
+function get_default_users_for_specific_day_and_hours($ccs){
+		global $wpdb;
+		$day_array = $this->day_array;
+		$hour_min = date ("H:i", $ccs);
+		//$hour_min = strtotime ($hour_min);
+		$hour_min_end = date ("H:i", $cce);
+		$day_name = date ("l", $ccs);
+		$month = date ("m", $ccs);
+		$year = date ("Y", $ccs);
+		$user_ID = $this->default_user_ID;
+		$date= $year .'-'. $month .'-'.$day ;
+
+							/*$hour_min = date ("H:i", $start);
+							$hour_min = strtotime ($hour_min);
+							$day = date ("l", $start);
+							$month = date ("m", $start);*/
+	//	if(array_search($day_array, $day_name)){
+		$day = $day_name;
+		//print($hour_min);
+		if($day == 'Sunday' or $day == 'Monday' or $day == 'Tuesday' or $day == 'Wednesday' or $day == 'Thursday'){		
+			if($hour_min == '09:00' or $hour_min == '10:30' or $hour_min == '12:00' or $hour_min == '13:30' or $hour_min == '15:00' or $hour_min == '16:30' or $hour_min == '18:00' or $hour_min == '19:30' ){	
+				$user_ID = array();
+				//if($this->get_single_three_line_user_availibity_of_specific_date($ccs, '16')== true){
+				$user_ID[] = '16';
+				//}
+				//if($this->get_single_three_line_user_availibity_of_specific_date($ccs, '17')== true){
+				$user_ID[] = '17';
+				//}
+				//print('<br>');		
+				//print_r($user_ID );		
+				return $user_ID;
+				}
+			}				
+	
+	}
+	
 
 //check the IDS ARRAY
 function check_appointments_already_taken($start, $end){
@@ -3501,6 +3698,178 @@ function check_appointments_already_taken($start, $end){
 
 
 
+	function get_appointment_availablity_by_date_and_attendence_for_specific_time_checking($ccs, $cce){
+				global $wpdb;
+				
+				$start = date ("Y-m-d H:i:s", $ccs);
+				$end = date ("Y-m-d H:i:s", $cce);
+				$requested_appointment = $_REQUEST['attendees'];
+				$app_appointments_taken = $wpdb->get_var( "SELECT COUNT(*) FROM wp_app_appointments WHERE start = '$start%' AND end = '$end%'" );
+				//print( 'Appointment Aready Taken: '. $app_appointments_taken).'<br>';
+				if(!empty($_REQUEST['app_service_id']) and $_REQUEST['app_service_id']==2){
+				$ids = count($this->get_worker_three_line($ccs, $cce));
+                //$user_ID = $this->get_default_users_for_specific_day_and_hours($ccs);
+				}else{
+				//$ids = count($this->get_worker_new($ccs, $cce));
+				$output = false;
+				}
+				//print( 'Worker Number: '. $ids .'<br>');
+				if($ids != null or $ids != 0){
+					if($ids==1){
+					$availity = 3;
+					}else{
+					$availity = $ids * 3;
+					}
+				}
+				if(!empty($app_appointments_taken) or $app_appointments_taken !=0  or $app_appointments_taken != NULL){
+					$availity = $availity - $app_appointments_taken;
+				}
+				
+				//if($availity<=$requested_appointment){
+				if(!empty($availity) or $availity != 0){	
+							if($availity<$requested_appointment){
+								$output = false;
+							}else{
+								$output = true;
+			
+							}
+					}else{
+						$output = false;
+					
+				}
+				
+				return $output;
+				
+		
+		}
+
+
+
+
+	function check_time_which_need_to_fill_first($ccs){
+		$date = date ("Y-m-d", $ccs);
+		$new_css = date ("Y-m-d H:i:s", $ccs);
+		
+		$time = array(array('start'=>'09:00', 'end'=>'10:30'), array('start'=>'12:00', 'end'=>'13:30'), array('start'=>'15:00', 'end'=>'16:30'), array('start'=>'18:00', 'end'=>'19:30'));
+		//print_r($time);
+		$i = 0;
+		$out = false;
+		foreach($time as $array){
+			//print_r($array);
+			$i++;
+			$new_ccs = new DateTime($date .' '. $array['start']);
+			$new_ccs = $new_ccs->getTimestamp();
+			$new_cee = new DateTime($date .' '. $array['end']);
+			$new_cee = $new_cee->getTimestamp();
+			//print('<br>Made By Array date: ' .$new_css . '<br>');
+			//print('Array date: ' .$array['start']. '<br>');
+			//print('new End date: ' .$new_cee . '<br>');
+			
+			
+			//print('new date: ' .date ("Y-m-d H:i:s", $new_ccs) . ' Old date: ' .date ("Y-m-d H:i:s", $ccs). '<br>');
+				// return true;
+				
+				if(!empty($_REQUEST['app_service_id']) and $_REQUEST['app_service_id']==2){
+				
+				$out = $this->get_appointment_availablity_by_date_and_attendence_for_specific_time_checking($new_ccs, $new_cee);
+				if($out == true){
+                    echo $i . '<br>';
+					//break;
+                    
+				}
+				}
+				
+			}
+				return $out;
+		}
+
+
+
+	function after_9am_12pm_and_3pm_6pm_sign_up_1030am_0130am_and_0430pm_0730pm_register($ccs, $cce){
+				global $wpdb;
+				$start = date ("H:i", $ccs);
+				$day = date ("l", $ccs);
+				$end = date ("H:i", $cce);
+        $date_check = date ("Y-m-d H:i:s", $ccs);
+				$requested_appointment = $_REQUEST['attendees'];
+				//$app_appointments_taken = $wpdb->get_var( "SELECT COUNT(*) FROM wp_app_appointments WHERE start = '$start%' AND end = '$end%'" );
+				//echo 'Date:' . $start . ' ' .  $end . '<br>';
+				
+				if($day == 'Sunday' or $day == 'Monday' or $day == 'Tuesday' or $day == 'Wednesday' or $day == 'Thursday'){
+					if($start == '10:30' or $start =='13:30' or $start =='16:30' or $start =='19:30' ){
+					if(!empty($_REQUEST['app_service_id']) and $_REQUEST['app_service_id']==2){
+									$ids = count($this->get_worker_three_line($ccs, $cce));
+									}else{
+									$ids = count($this->get_worker_new($ccs, $cce));
+									}
+							
+							$output =  false;
+							if(!empty($ids) or $ids != 0 ){
+								echo '<br>  Start: '.$date_check. '<br>';
+                                echo '<br>  ID: '.$ids. '<br>';
+							$output = $this->check_time_which_need_to_fill_first($ccs);
+							}else{
+						      $output = false;		
+						}
+					}else{
+					$output = false;
+				}
+				}else{
+					$output = false;
+				}
+				
+				return $output;
+				
+		}
+
+
+
+
+	// add default guide for specific date
+	
+	function add_default_guide_for_specifiction_days($ccs, $cce){
+		
+		$time = array(array('start'=>'09:00', 'end'=>'10:30'), array('start'=>'12:00', 'end'=>'13:30'), array('start'=>'15:00', 'end'=>'16:30'), array('start'=>'18:00', 'end'=>'19:30'));
+		
+		$i = 0;
+		$out = false;
+		foreach($time as $array){
+			
+			$i++;
+			$new_ccs = new DateTime($date .' '. $array['start']);
+			$new_ccs = $new_ccs->getTimestamp();
+			$new_cee = new DateTime($date .' '. $array['end']);
+			$new_cee = $new_cee->getTimestamp();
+			print('<br>Made By Array date: ' .$new_css . '<br>');
+			print('Array date: ' .$array['start']. '<br>');
+			//print('new End date: ' .$new_cee . '<br>');
+			//echo $i . '<br>';
+			
+			//print('new date: ' .date ("Y-m-d H:i:s", $new_ccs) . ' Old date: ' .date ("Y-m-d H:i:s", $ccs). '<br>');
+				// return true;
+				
+				if(!empty($_REQUEST['app_service_id']) and $_REQUEST['app_service_id']==2){
+				$ids = count($this->get_worker_three_line($new_ccs, $new_cce));
+				}else{
+				$ids = count($this->get_worker_new($new_ccs, $new_cce));
+				}
+				if(!empty($ids) or $ids != 0){
+				$out = $this->get_appointment_availablity_by_date_and_attendence_for_specific_time_checking($new_ccs, $new_cee);
+				if($out == true){
+					break;
+				}
+				}
+				
+			}
+				return $out;
+		
+		
+		
+		}
+
+
+
+
 	function get_appointment_availablity_by_date_and_attendence($ccs, $cce){
 				global $wpdb;
 				
@@ -3508,32 +3877,42 @@ function check_appointments_already_taken($start, $end){
 				$end = date ("Y-m-d H:i:s", $cce);
 				$requested_appointment = $_REQUEST['attendees'];
 				$app_appointments_taken = $wpdb->get_var( "SELECT COUNT(*) FROM wp_app_appointments WHERE start = '$start%' AND end = '$end%'" );
+				//print( 'Number find: '. $app_appointments_taken).'<br>';
 				if(!empty($_REQUEST['app_service_id']) and $_REQUEST['app_service_id']==2){
 				$ids = count($this->get_worker_three_line($ccs, $cce));
 				}else{
 				$ids = count($this->get_worker_new($ccs, $cce));
 				}
-				if($ids != null){
+				//print('<br>available: '.$ids.'<br>');
+				if($ids != null or $ids != 0){
 					if($ids==1){
-					$availity = 3;
+						$availity = 3;
 					}else{
-					$availity = $ids * 3;
+						$availity = $ids * 3;
 					}
 				}
+				
+				
+				//print('<br>'.$availity.'<br>');
 				if(!empty($app_appointments_taken) and $app_appointments_taken !=0 ){
 					$availity = $availity - $app_appointments_taken;
 				}
 				
+				
 				//if($availity<=$requested_appointment){
 				if($availity<$requested_appointment){
-					if($availity>=6){
-					return false;
-					}else{
-					return true;
-				}
-					}else{
-					return false;
+					if($ids != null or $ids != 0){
+						if($availity>=6){
+						return false;
+						}else{
+						return true;
+						}
 					}
+					
+					
+				}else{
+					return false;
+				}
 				
 		
 		}
@@ -3758,7 +4137,9 @@ function check_appointments_already_taken($start, $end){
 
 		$er_ms ='Please fillup the Attendees Information First';
 		if(!empty($att_info)){
+			
 		$wprl_att_info= explode( "!", $att_info );
+		//die( json_encode( array("error"=>$wprl_att_info)));
 		foreach ($wprl_att_info as $ar){
 		if(!empty($ar))	{
 			$ar= explode( "|", $ar );
@@ -3773,7 +4154,7 @@ function check_appointments_already_taken($start, $end){
 				
 				}else{
 				die( json_encode( array("error"=>$er_ms)));
-					}
+			}
 			
 		}else{
 			die( json_encode( array("error"=>$er_ms)));
@@ -4083,7 +4464,8 @@ function check_appointments_already_taken($start, $end){
 										array(
 											'created'	=>	$created,
 											'cid'		=>	$cid,
-											'user'		=>	$user_id,
+										//	'user'		=>	$user_id,
+											'user'		=>	$user,
 											'name'		=>	$name,
 											'email'		=>	$email,
 											'phone'		=>	$phone,
@@ -4104,6 +4486,17 @@ function check_appointments_already_taken($start, $end){
 										),
 										array('%s')
 									);
+									
+									
+							if($result1 === false){
+										die( json_encode(
+														array(
+														"result"				=> $wpdb->show_errors(),
+														"express"				=> 'sorry',
+														//"cid"					=>$cid
+														)
+											));
+										}		
 			
 			
 					
@@ -4127,7 +4520,7 @@ function check_appointments_already_taken($start, $end){
 								$cr_arr[] = '0';
 								$i++;
 								}
-							print_r($cr_arr);	
+							//print_r($cr_arr);	
 							$arrs = array_merge($arrs, $cr_arr);	
 							
 								
@@ -4165,7 +4558,7 @@ function check_appointments_already_taken($start, $end){
 											'cid'		=>	$cid,
 											'reservation'		=>	$reservation,
 											'reservation_code'		=>	$reservation_code,
-											'user'		=>	$user_id,
+											'user'		=>	$user,
 											'name'		=>	$name,
 											'age'		=>	$age,
 											'weight'	=>	$weight,
@@ -4186,7 +4579,7 @@ function check_appointments_already_taken($start, $end){
 										),
 										array('%s')
 									);
-			
+									
 							
 							}
 								
@@ -4330,6 +4723,8 @@ function check_appointments_already_taken($start, $end){
 
 					$response .= $st;
 				}
+				
+				//print_r($response);
 
 				$error = '';
 				$lines = explode("\n", str_replace("\r\n", "\n", $response));
@@ -4368,7 +4763,7 @@ function check_appointments_already_taken($start, $end){
 				
 					$this->receive_paypal_2($_POST['custom']);
 					$message = sprintf( __('Paypal confirmation arrived. Please check appointment name: %s', 'appointments'), $this->mail_massage_name($_POST['custom']) );
-					wp_mail( $this->get_admin_email(), 'Appointment time', $message ); 
+					wp_mail( $this->get_admin_email(), 'Appointment time', $_POST['custom'] ); 
 					$reservation_massage = '';
 					//$reservation_massage .= 'Hello ';
 					wp_mail( $this->collect_email_address($_POST['custom']), 'Appointment are registered', $this->mail_massage($_POST['custom']) ); 
@@ -4468,6 +4863,7 @@ function check_appointments_already_taken($start, $end){
 
 		return mktime( 0, 0, 0, $month+$add, 1, $year );
 	}
+	
 
 	/**
 	 * Helper function to create a monthly schedule
@@ -4601,6 +4997,136 @@ function check_appointments_already_taken($start, $end){
 
 		return $ret;
 	}
+	
+	
+	
+	function _implement_new_time_frame($day_start){
+		$date = date ("Y-m-d", $day_start);
+		//print($date);
+		global $wpdb;
+		$dafault_time_frame = $this->default_hours;
+		$time_frame = $wpdb->get_row( "SELECT * FROM wp_app_time_frame WHERE `date` = '$date%'" );
+		//echo $hour. '<br>';
+		//$time_start_new= $time->start *3600 + $day_start;
+		//$time_end_new= $time->end *3600 + $day_start;
+		$start_n = 23;
+		 $end_n = 0;
+		$arr = array();
+		if(!empty($time_frame) and $time_frame != NULL){
+				$time_decode = json_decode($time_frame->time);
+					$start = date( "G", strtotime( $this->to_military($time_decode->start ) ) );
+					$end = date( "G", strtotime( $this->to_military($time_decode->end ) ) );
+					if($start < $start_n){
+					$arr['start']= $start;
+					}
+					if($end > $end_n){
+					$end_n = $time_decode->end;
+					$arr['end']= $end;
+					}
+			
+			}else{
+		//$arr = array('start'=> $start, 'end'=> $end);
+			$arr = $dafault_time_frame;
+						
+		}
+		
+		
+		return $arr;
+		
+	}
+	
+	
+	
+	function get_start_end_hours($date){
+		$date = date ("Y-m-d", $date);
+		global $wpdb;
+		$start_default = 23;
+		 $end_default = 0;
+		$arr = array();
+		$querys = $wpdb->get_results( "SELECT * FROM  `wp_three_line_appointment` WHERE  `date` =  '$date'" );
+		//print_r($querys);
+		if(!empty($querys)){
+			foreach($querys as $query){
+					
+						$start = date( "G", strtotime( $this->to_military($query->working_hours_start ) ) );
+						$end = date( "G", strtotime( $this->to_military($query->working_hours_end ) ) );
+						if($start < $start_default){
+						$arr['start'] = $query->working_hours_start;
+						}
+						if($end > $end_default){
+						$arr['end'] = $query->working_hours_end;
+						
+						}
+					}
+			}else{
+			$arr = $this->default_hours;
+			$start = date( "G", strtotime( $this->to_military($arr['start'] ) ) );
+			$end = date( "G", strtotime( $this->to_military($arr['end'] ) ) );	
+				if($start < $start_default){
+					$arr['start'] = $arr['start'];
+					}
+				if($end > $end_default){
+					$arr['end'] = $arr['end'];
+					}
+				}	
+				//print('Get Start: ' .$arr['start'] .' ' . $start);	
+				//print('<br>Get End: ' .$arr['end'] . ' ' . $end . '<br>');	
+				return $arr;
+			
+				
+
+		}
+	
+
+	function get_start_end_hours_break($date){
+		$date = date ("Y-m-d", $date);
+		global $wpdb;
+		$start_default = 23;
+		 $end_default = 0;
+		$arr = array();
+		$querys = $wpdb->get_results( "SELECT * FROM  `wp_three_line_appointment` 
+WHERE  `date` =  '$date'" );
+		//print_r($querys);
+			foreach($querys as $query){
+					
+						$start = date( "G", strtotime( $this->to_military($query->working_hours_start ) ) );
+						$end = date( "G", strtotime( $this->to_military($query->working_hours_end ) ) );
+						if($start < $start_default){
+						$arr['start'] = $query->working_hours_start;
+						}
+						if($end > $end_default){
+						$arr['end'] = $query->working_hours_end;
+						
+						}
+					}
+					
+					
+				return $arr;
+			
+				
+
+		}
+
+    
+    // @get the match value of array
+    // @return bull
+    
+    function search_and_match($key_word, $search_array=array()){
+        
+        $key = array_search($key_word, $search_array); 
+           
+                if(empty($key) or $key == NULL or $key == FALSE){
+                    $result = true;
+                    
+                }else{
+                  $result = false;   
+            }
+            return $key_word;
+        
+        
+    }
+    
+	
 
 	/**
 	 * Helper function to create a time table for monthly schedule
@@ -4615,13 +5141,15 @@ function check_appointments_already_taken($start, $end){
 
 		// Are we looking to today?
 		// If today is a working day, shows its free times by default
+		
+		//print(date( "Y-m-d h:m", $day_start). '<br>');
 		if ( date( 'Ymd', $day_start ) == date( 'Ymd', $time ) )
 			$style = '';
 		else
 			$style = ' style="display:none"';
 
 		$start = $end = 0;
-		if ( $min_max = $this->min_max_wh( 0, 0 ) ) {
+		if ( $min_max = $this->min_max_wh( 0, 0 ,  $day_start) ) {
 			$start = $min_max["min"];
 			$end = $min_max["max"];
 		}
@@ -4629,11 +5157,27 @@ function check_appointments_already_taken($start, $end){
 			$start = 8;
 			$end = 18;
 		}
+		//echo date( 'Y-m-d', $day_start ). '<br>';
 		$start = apply_filters( 'app_schedule_starting_hour', $start );
 		$end = apply_filters( 'app_schedule_ending_hour', $end );
 
+       // $first = $this->time_choice_first;
+       // $second = $this->time_choice_second;        
+		//var_dump($first);
+       // var_dump($second);
+       // echo $start .'|'. $end. '<br>';
 		$first = $start *3600 + $day_start; // Timestamp of the first cell
 		$last = $end *3600 + $day_start; // Timestamp of the last cell
+		//print(date( 'Y-m-d', $day_start ) . '<br>');
+		//print($first . '!!' . $last . "<br>");
+		
+		//var_dump($start_end);
+		
+		//$first = $start_end['start']; // Timestamp of the first cell
+		//$last = $start_end['end']; // Timestamp of the last cell
+		//print($start_end['start']  . '||' . $start_end['end']. '<br><br>');
+		
+		
 		$min_step_time = $this->get_min_time() * 60; // Cache min step increment
 
 		if (defined('APP_USE_LEGACY_DURATION_CALCULUS') && APP_USE_LEGACY_DURATION_CALCULUS) {
@@ -4644,13 +5188,24 @@ function check_appointments_already_taken($start, $end){
 		}
 
 		if (!(defined('APP_USE_LEGACY_DURATION_CALCULUS') && APP_USE_LEGACY_DURATION_CALCULUS)) {
+			/*Shimion*/
+			if($_REQUEST['app_service_id']== 2){
+				$start_unpacked_days = $this->get_start_end_hours($day_start);
+				
+				}else{
+				$start_unpacked_dayss = $this->get_start_end_hours($day_start);
 			$start_result = $this->get_work_break( $this->location, $this->worker, 'open' );
 			if (!empty($start_result->hours)) $start_unpacked_days = maybe_unserialize($start_result->hours);
+			}
 		} else $start_unpacked_days = array();
 		if (defined('APP_BREAK_TIMES_PADDING_CALCULUS') && APP_BREAK_TIMES_PADDING_CALCULUS) {
 			$break_result = $this->get_work_break($this->location, $this->worker, 'closed');
 			if (!empty($break_result->hours)) $break_times = maybe_unserialize($break_result->hours);
 		} else $break_times = array();
+
+		//print_r( $start_unpacked_days);
+		//print_r( $break_times);
+
 
 		$ret  = '';
 		$ret .= '<div class="app_timetable app_timetable_'.$day_start.'"'.$style.'>';
@@ -4663,17 +5218,35 @@ function check_appointments_already_taken($start, $end){
 		$step = apply_filters('app-timetable-step_increment', $step);
 
 		for ( $t=$first; $t<$last; $t=$t+$step ) {
-
+			
 			$ccs = apply_filters('app_ccs', $t); 				// Current cell starts
 			$cce = apply_filters('app_cce', $ccs + $step);		// Current cell ends
 
 // Fix for service durations calculus and workhours start conflict with different duration services
 // Example: http://premium.wpmudev.org/forums/topic/problem-with-time-slots-not-properly-allocating-free-time
+			
+			
 			if (!empty($start_unpacked_days) && !(defined('APP_USE_LEGACY_DURATION_CALCULUS') && APP_USE_LEGACY_DURATION_CALCULUS)) {
+			if($_REQUEST['app_service_id']==2){
+				$this_day_key = date('l', $t);
+					$this_day_opening_timestamp = strtotime(date('Y-m-d ' . $start_unpacked_days['start'], $ccs));
+					//print('<br>'.date('Y-m-d ' . $this_day_key . ' ' . $start_unpacked_days['start'], $ccs).'<br>');
+						//print('<br>com: '.$this_day_opening_timestamp.'<br>');
+						//print('<br>my: '.$this_day_opening_timestamps.'<br>');
+						//print('<br>T: '.$t.'<br>');
+					if ($t < $this_day_opening_timestamp) {
+							$t = ($t - $step) + (apply_filters('app_safe_time', 1) * 60);
+							continue;
+						}
+						
+				}else{
+				
 				$this_day_key = date('l', $t);
 				if (!empty($start_unpacked_days[$this_day_key])) {
 					// Check slot start vs opening start
 					$this_day_opening_timestamp = strtotime(date('Y-m-d ' . $start_unpacked_days[$this_day_key]['start'], $ccs));
+					//print($this_day_opening_timestamp.' testing');
+					//print(date( "G", $t).'||'. $last . '<br>');
 					if ($t < $this_day_opening_timestamp) {
 						$t = ($t - $step) + (apply_filters('app_safe_time', 1) * 60);
 						continue;
@@ -4684,8 +5257,13 @@ function check_appointments_already_taken($start, $end){
 					//if ($cce > $this_day_closing_timestamp) continue;
 				}
 			}
+			
+		}
 // Breaks are not behaving like paddings, which is to be expected.
 // This fix (2) will force them to behave more like paddings
+		if($_REQUEST['app_service_id']==2){
+			
+			}else{
 			if (!empty($break_times[$this_day_key]['active']) && defined('APP_BREAK_TIMES_PADDING_CALCULUS') && APP_BREAK_TIMES_PADDING_CALCULUS) {
 				$active = $break_times[$this_day_key]['active'];
 				$break_starts = $break_times[$this_day_key]['start'];
@@ -4713,8 +5291,11 @@ function check_appointments_already_taken($start, $end){
 					}
 				}
 			}
+		}
 // End fixes area
-
+			
+			//print(date('Y-m-d  h:m' , $ccs) .'   '.date('Y-m-d  h:m' , $cce) .'<br>');
+			
 			$is_busy = $this->is_busy( $ccs, $cce, $capacity );
 			$title = apply_filters('app-schedule_cell-title', date_i18n($this->datetime_format, $ccs), $is_busy, $ccs, $cce, $schedule_key);
 
@@ -4727,48 +5308,64 @@ function check_appointments_already_taken($start, $end){
 				}else{
 				$class_name = 'busy reservation_not_available';
 					}
-				}else{			
-			// Mark now
-			if ( $this->local_time > $ccs && $this->local_time < $cce )
-				$class_name = 'notpossible now';
-			// Mark passed hours
-			else if ( $this->local_time > $ccs )
-				$class_name = 'notpossible app_past';
-			// Then check if this time is blocked
-			else if ( isset( $this->options["app_lower_limit"] ) && $this->options["app_lower_limit"]
-				&&( $this->local_time + $this->options["app_lower_limit"] * 3600) > $cce )
-				$class_name = 'notpossible app_blocked';
-			// Check if this is break
-			else if ( $this->is_break( $ccs, $cce ) )
-				$class_name = 'notpossible app_break';
-			// Then look for appointments
-			//else if ( $is_busy )
-				//$class_name = $this->check_and_compare_date( $ccs, $cce);
-				
-			else if($this->check_and_compare_date( $ccs, $cce))	
-				$class_name = 'busy';
-				
-			else if(empty($_REQUEST['app_service_id']))	
-				$class_name = 'busy';
-				
-			//else if(!empty($_REQUEST['reservation_code']))	
-			//	$class_name = 'busy';
-				
-			else if($this->get_appointment_availablity_by_date_and_attendence( $ccs, $cce))	
-				$class_name = 'busy';
-			// Then check if we have enough time to fulfill this app
-			else if ( !$this->is_service_possible( $ccs, $cce, $capacity ) )
-				$class_name = 'notpossible service_notpossible';
-			// If nothing else, then it must be free
-			else {
-				
-				$class_name = 'free';
-				
-				// We found at least one timetable cell to be free
-				$this->is_a_timetable_cell_free = true;
-			}
+				}else{	
 			
+			
+			
+						
+				// Mark now
+				if ( $this->local_time > $ccs && $this->local_time < $cce )
+					$class_name = 'notpossible now';
+				// Mark passed hours
+				else if ( $this->local_time > $ccs )
+					$class_name = 'notpossible app_past';
+				// Then check if this time is blocked
+				else if ( isset( $this->options["app_lower_limit"] ) && $this->options["app_lower_limit"]
+					&&( $this->local_time + $this->options["app_lower_limit"] * 3600) > $cce )
+					$class_name = 'notpossible app_blocked';
+				// Check if this is break
+				else if ( $this->is_break( $ccs, $cce ) )
+					$class_name = 'notpossible app_break';
+				// Then look for appointments
+				//else if ( $is_busy )
+					//$class_name = $this->check_and_compare_date( $ccs, $cce);
+					
+				//else if($this->check_and_compare_date( $ccs, $cce))	
+				//	$class_name = 'busy';
+					
+				else if(empty($_REQUEST['app_service_id']))	
+					$class_name = 'busy';
+					
+				//else if(!empty($_REQUEST['reservation_code']))	
+				//	$class_name = 'busy';
+				
+				
+				
+					
+				else if($this->get_appointment_availablity_by_date_and_attendence( $ccs, $cce))	
+					$class_name = 'busy';
+				// Then check if we have enough time to fulfill this app
+				else if ( !$this->is_service_possible( $ccs, $cce, $capacity ) )
+					$class_name = 'notpossible service_notpossible';
+				// Then check if we have enough time to fulfill this app
+				//else if (!$this->is_first_choice_then_second_chioce( $ccs, $cce))
+				  //  $class_name = 'busy';
+				// If nothing else, then it must be free
+				
+				
+				//else if($this->after_9am_12pm_and_3pm_6pm_sign_up_1030am_0130am_and_0430pm_0730pm_register($ccs, $cce) == true)
+				//	$class_name = 'notpossible checking';
+				
+				
+				else {
+					
+					$class_name = 'free '; //$this->is_first_choice_then_second_chioce( $ccs, $cce) this gona be remove ;
+					
+					// We found at least one timetable cell to be free
+					$this->is_a_timetable_cell_free = true;
 				}
+			
+		}
 			
 			
 			
@@ -4820,7 +5417,7 @@ function check_appointments_already_taken($start, $end){
 		$sunday = $this->sunday( $date ); // Timestamp of first Sunday of any date
 
 		$start = $end = 0;
-		if ( $min_max = $this->min_max_wh( 0, 0 ) ) {
+		if ( $min_max = $this->min_max_wh( 0, 0 ,  $day_start) ) {
 			$start = $min_max["min"];
 			$end = $min_max["max"];
 		}
@@ -5099,14 +5696,24 @@ function check_appointments_already_taken($start, $end){
 
 
 		$working_hours = $wpdb->get_results( "SELECT * FROM wp_three_line_appointment WHERE `date` = '$date%'");
-
+		
 		if(!empty($working_hours) and is_array($working_hours)){
-			foreach($working_hours as $worker_hour)
+			foreach($working_hours as $worker_hour):
 			if($worker_hour->working_hours_start <= $hour_min){
 				return false;
 				}
+			endforeach;
 			}else{
-			return true;	
+			$working_hours = $this->default_hours;
+			//print_r($working_hours);
+				//print('<br>Cal: '.$hour_min.'<br>');
+				//print('<br>Mine: '.$working_hours['start']. '<br>');
+				
+				if($worker_hours['start'] <= $hour_min){
+					return false;
+					}else{
+					return true;	
+				}
 			}
 
 			
@@ -5469,7 +6076,18 @@ if ($this->worker && $this->service && ($app->service != $this->service)) {
 	 * Get the maximum and minimum working hour
 	 * @return array
 	 */
-	function min_max_wh( $worker=0, $location=0 ) {
+	function min_max_wh( $worker=0, $location=0 ,  $day_start) {
+		if($_REQUEST['app_service_id']== 2){
+		$start_end = $this->_implement_new_time_frame($day_start);
+		//echo 'my: ' .$start_end['start'] . '|'. $start_end['end'] . '<br>';
+		
+			$start = $start_end['start'];
+			$end = $start_end['end'];
+		
+		return array( "min"=>$start, "max"=>$end );
+
+			
+			}else{
 		$this->get_lsw();
 		$result = $this->get_work_break( $this->location, $this->worker, 'open' );
 		if ( $result !== null ) {
@@ -5497,6 +6115,7 @@ if ($this->worker && $this->service && ($app->service != $this->service)) {
 			}
 		}
 		return false;
+		}
 	}
 
 	/**
@@ -10237,9 +10856,11 @@ function receive_paypal_2($custom){
 
 
 		if($result=== false){
-			wp_mail('shimion_b@yahoo.com', 'Heisezip problem with update after paypasl payment', 'This is problem with ');
-		
-		}
+			//wp_mail('shimion_b@yahoo.com', 'Heisezip problem with update after paypasl payment', 'This is problem with ');
+		echo 'SOrry';
+		}else{
+		echo 'enjoy';
+			}
 
 
 /*for($x=1; $x<=$apps_num; $x++){
@@ -10257,6 +10878,8 @@ function receive_paypal_2($custom){
 		);
 	}
 */
+
+ update_option('check_value_custom', $custom);
 
 
 	}
